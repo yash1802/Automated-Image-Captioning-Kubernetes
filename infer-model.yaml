@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: persistent-volume-1
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: /tmp/data/pv-1
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: image-caption-logs
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+     requests:
+       storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: infer-image-caption-model
+spec:
+  type: NodePort
+  selector:
+    app: image-caption
+  ports:
+  - name: image-caption-port
+    protocol: TCP
+    nodePort: 30000
+    port: 5000
+    targetPort: 5000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infer-image-caption-model
+  labels:
+    app: image-caption
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: image-caption
+  template:
+    metadata:
+      labels:
+        app: image-caption
+    spec:
+      containers:
+      - name: keras
+        image: gsl871378274/image_caption:v10
+        volumeMounts:
+        - name: model-logs
+          mountPath: /logs
+        ports:
+        - containerPort: 5000
+        command:
+        - "python"
+        - "/image_caption/predict.py"
+      volumes:
+      - name: model-logs
+        persistentVolumeClaim:
+          claimName: image-caption-logs
